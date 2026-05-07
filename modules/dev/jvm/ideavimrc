@@ -1,0 +1,8 @@
+set which-key
+set notimeout
+let g:WhichKey_ShowVimActions = "true"
+
+# relative line numbers with absolute at cursor
+set number relativenumber
+
+source ~/.intellidoom/doom.vim
