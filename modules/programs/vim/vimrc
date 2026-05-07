@@ -1,0 +1,32 @@
+set nocompatible
+
+" Configuration
+let g:solarized_termtrans=1
+set background=dark
+silent! colorscheme solarized
+syntax on
+
+set incsearch
+set ignorecase
+set smartcase
+set showmatch
+set diffopt=filler,iwhite "Ignore all whitespace
+set showmatch " Show matching braces
+set encoding=utf-8 "The one true encoding
+set clipboard+=unnamed " Yanks go to cliboard
+set title " Inherit vim's title, not the terminals
+set hidden " Allows multiple buffer managing
+set backspace=indent,eol,start " Lazy backspace
+set number " Line Numbers
+set scrolloff=5 "Leave at least 5 lines up/down the cursor
+set scrolljump=5 " Lines to scroll when the cursor leaves the screen
+set history=1000 " Remeber more commands!
+set autochdir
+set ttyfast
+set noerrorbells
+set relativenumber
+set tabstop=2
+set shiftwidth=2
+
+set softtabstop=2
+set expandtab
