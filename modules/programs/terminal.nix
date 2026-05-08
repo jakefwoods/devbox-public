@@ -5,7 +5,7 @@
     terminal = {
       description = "Terminal utilities and shell configuration";
 
-      homeManager = { pkgs, ... }:
+      homeManager = { pkgs, lib, ... }:
       let
         shellAliases = {
           top = "bottom";
@@ -77,9 +77,11 @@
           pkgs.pandoc
           pkgs.procs
           pkgs.lsof
-          pkgs.s-tui
           pkgs.tokei
           pkgs.unzip
+        ] ++ lib.optionals pkgs.stdenv.isLinux [
+          # s-tui is marked broken on Darwin in nixpkgs.
+          pkgs.s-tui
         ];
       };
     };
