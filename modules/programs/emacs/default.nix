@@ -7,27 +7,60 @@
     emacs = {
       description = "Emacs with Doom configuration";
 
+      includes = with aspects; [
+        devbox-public-path
+      ];
+
       nixos = { pkgs, ... }: {
         nixpkgs.overlays = [ inputs.emacs-overlay.overlay ];
       };
 
-      homeManager = { config, pkgs, ... }:
+      homeManager = { config, pkgs, lib, ... }:
       let
         doomRepoUrl = "https://github.com/doomemacs/doomemacs";
       in
       {
+        # Apply the emacs-overlay so `pkgs.emacs-macport` (and friends) are
+        # available in standalone home-manager too. In NixOS the same overlay
+        # is applied via the nixos block above.
+        nixpkgs.overlays = [ inputs.emacs-overlay.overlay ];
+
         programs.emacs = {
           enable = true;
+          # Cross-platform: the Mitsuharu Yamamoto port gives a proper macOS
+          # native feel (smooth scrolling, native fullscreen, retina text).
+          # On Linux we stay on plain pkgs.emacs.
+          package =
+            if pkgs.stdenv.isDarwin
+            then pkgs.emacs-macport
+            else pkgs.emacs;
           extraPackages = epkgs: with epkgs; [
             vterm
             treesit-grammars.with-all-grammars
           ];
         };
 
-        services.emacs = {
+        # Linux: systemd user service. No-op (and silently broken) on Darwin.
+        services.emacs = lib.mkIf pkgs.stdenv.isLinux {
           enable = true;
           client.enable = true;
           startWithUserSession = "graphical";
+        };
+
+        # macOS: launchd agent. Use --fg-daemon so launchd can supervise the
+        # process correctly (it watches the foreground PID).
+        launchd.agents.emacs = lib.mkIf pkgs.stdenv.isDarwin {
+          enable = true;
+          config = {
+            ProgramArguments = [
+              "${config.programs.emacs.finalPackage}/bin/emacs"
+              "--fg-daemon"
+            ];
+            KeepAlive = true;
+            RunAtLoad = true;
+            StandardOutPath = "${config.xdg.cacheHome}/emacs/daemon.log";
+            StandardErrorPath = "${config.xdg.cacheHome}/emacs/daemon.log";
+          };
         };
 
         home.packages = [
@@ -72,9 +105,12 @@
           fi
         '';
 
+        # Out-of-store symlink so edits to doom.d in the working copy take
+        # effect immediately, without a home-manager rebuild. The path is
+        # host-specific and configured via local.devboxPublic.path.
         xdg.configFile."doom".source =
           config.lib.file.mkOutOfStoreSymlink
-            "${config.home.homeDirectory}/devbox-public/modules/programs/emacs/doom.d";
+            "${config.local.devboxPublic.path}/modules/programs/emacs/doom.d";
       };
     };
   };
