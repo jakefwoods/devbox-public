@@ -25,8 +25,13 @@
           shellAliases = shellAliases;
         };
 
-        # Zsh aliases (if zsh is enabled elsewhere)
-        programs.zsh.shellAliases = shellAliases;
+        # Zsh — needed on macOS where it's the default login shell, so that
+        # home-manager generates a ~/.zshrc that sources hm-session-vars.sh
+        # (and therefore picks up home.sessionPath additions like Doom's bin).
+        programs.zsh = {
+          enable = true;
+          inherit shellAliases;
+        };
 
         # Starship prompt
         programs.starship = {
