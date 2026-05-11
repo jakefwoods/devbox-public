@@ -80,6 +80,12 @@
             pkgs.source-code-pro
             pkgs.et-book
 
+            # Glyph font for the nerd-icons elisp package (Doom's default icon
+            # library since ~2024). Without this, treemacs/doom-modeline/etc.
+            # render bare Unicode codepoints instead of icons. Symbols-only is
+            # ~2 MB, composes with whatever programming font is in use.
+            pkgs.nerd-fonts.symbols-only
+
             # for treemacs
             pkgs.python3
 
