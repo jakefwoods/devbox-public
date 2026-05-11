@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# Smoke-test devbox-public.
+#
+# Layer 1 (cheap, ~seconds):
+#   - `nix flake check` runs the standard checks and evaluates the standard
+#     flake outputs (nixosConfigurations, packages, etc.).
+#   - We additionally force-evaluate `flake.aspects`, because it's a custom
+#     output from vic/flake-aspects and `flake check` doesn't reach into it.
+#     This catches syntax errors, undefined variables, and option-type errors
+#     at the aspect level — including "with aspects; [ missing-aspect ]".
+#
+# What this DOES NOT catch:
+#   - Errors inside the `homeManager = { ... }: { ... }` function bodies of
+#     each aspect — those only fire when the modules are instantiated against
+#     a real home-manager configuration. Add a smoke-test
+#     flake.homeConfigurations and build it here when the time comes.
+
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$script_dir/.."
+
+echo ">>> nix flake check (eval-only)"
+# --no-build: stop at evaluation. devbox-public's checks live on
+# x86_64-linux, so on a darwin host we'd otherwise hit "platform mismatch"
+# trying to actually build them. Evaluation alone still catches the
+# everyday class of bugs.
+nix --experimental-features 'nix-command flakes' \
+  flake check --no-write-lock-file --all-systems --no-build
+
+echo ">>> Force-eval flake.aspects"
+nix --experimental-features 'nix-command flakes' \
+  eval --no-write-lock-file .#aspects \
+  --apply 'builtins.attrNames' \
+  >/dev/null
+
+echo ">>> OK"
