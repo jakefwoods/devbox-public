@@ -27,13 +27,22 @@
             in
             lib.hm.dag.entryAfter [ "writeBoundary" ] ''
               baseDir="$HOME/Applications/Nix Apps"
+              # Files copied from /nix/store inherit read-only perms, so we
+              # have to make them writable before rm can succeed on the next
+              # activation. Tolerate missing dir / partial trees from earlier
+              # broken activations.
               if [ -d "$baseDir" ]; then
+                $DRY_RUN_CMD chmod -R u+w "$baseDir" 2>/dev/null || true
                 $DRY_RUN_CMD rm -rf "$baseDir"
               fi
               $DRY_RUN_CMD mkdir -p "$baseDir"
               for appFile in ${apps}/Applications/*; do
                 target="$baseDir/$(basename "$appFile")"
-                $DRY_RUN_CMD ${pkgs.rsync}/bin/rsync -a --copy-unsafe-links \
+                # -a preserves internal symlinks (frameworks like Sparkle use
+                #   Versions/Current -> Versions/B; turning those into files
+                #   breaks the framework). DO NOT add --copy-unsafe-links.
+                # --chmod=u+w makes the copy deletable on the next run.
+                $DRY_RUN_CMD ${pkgs.rsync}/bin/rsync -a --chmod=u+w \
                   "$appFile/" "$target/"
               done
             '';
