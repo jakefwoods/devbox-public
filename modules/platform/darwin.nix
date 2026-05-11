@@ -27,11 +27,17 @@
             in
             lib.hm.dag.entryAfter [ "writeBoundary" ] ''
               baseDir="$HOME/Applications/Nix Apps"
-              # Files copied from /nix/store inherit read-only perms, so we
-              # have to make them writable before rm can succeed on the next
-              # activation. Tolerate missing dir / partial trees from earlier
-              # broken activations.
+              # Tearing down the previous tree is harder than it looks on
+              # macOS:
+              #   - /nix/store files are read-only; rsync -a preserves perms,
+              #     so the copy ends up read-only too.
+              #   - Apps with Sparkle (Ghostty, Emacs.app, …) set the BSD
+              #     `uchg` (user-immutable) flag on framework binaries.
+              #     `chmod` silently no-ops on uchg files; you must clear
+              #     the flag with `chflags nouchg` first or `rm -rf` fails
+              #     with EACCES on every protected file.
               if [ -d "$baseDir" ]; then
+                $DRY_RUN_CMD chflags -R nouchg "$baseDir" 2>/dev/null || true
                 $DRY_RUN_CMD chmod -R u+w "$baseDir" 2>/dev/null || true
                 $DRY_RUN_CMD rm -rf "$baseDir"
               fi
@@ -41,9 +47,13 @@
                 # -a preserves internal symlinks (frameworks like Sparkle use
                 #   Versions/Current -> Versions/B; turning those into files
                 #   breaks the framework). DO NOT add --copy-unsafe-links.
-                # --chmod=u+w makes the copy deletable on the next run.
-                $DRY_RUN_CMD ${pkgs.rsync}/bin/rsync -a --chmod=u+w \
+                # --chmod=ugo+rwX gives both files and dirs (X = +x only on
+                #   already-executable files / directories) write perms so
+                #   the next activation's rm can win without help.
+                $DRY_RUN_CMD ${pkgs.rsync}/bin/rsync -a --chmod=ugo+rwX \
                   "$appFile/" "$target/"
+                # Belt-and-braces: clear uchg in case rsync copied any in.
+                $DRY_RUN_CMD chflags -R nouchg "$target" 2>/dev/null || true
               done
             '';
         };
