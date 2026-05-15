@@ -42,6 +42,9 @@
 
 (package! typespec-ts-mode)
 
+;; org-roam-ui: browser-based graph visualization for org-roam
+(package! org-roam-ui)
+
 ;; Doom's packages are pinned to a specific commit and updated from release to
 ;; release. The `unpin!' macro allows you to unpin single packages...
 ;(unpin! pinned-package)
