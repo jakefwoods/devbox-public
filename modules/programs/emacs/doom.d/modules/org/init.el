@@ -13,6 +13,21 @@
         ;; Include org-journal formatted files in the agenda
         org-agenda-file-regexp "\\`\\([^.].*\\.org\\|[0-9]\\{8\\}\\(\\.gpg\\)?\\)\\'"))
 
+;; Silently revert org buffers before building agenda (external tools write files)
+(defun jw/revert-org-buffers ()
+  "Revert all unmodified Org buffers from disk without prompting."
+  (dolist (buf (buffer-list))
+    (with-current-buffer buf
+      (when (and (derived-mode-p 'org-mode)
+                 (buffer-file-name)
+                 (not (buffer-modified-p))
+                 (file-exists-p (buffer-file-name)))
+        (revert-buffer t t t)))))
+
+(advice-add 'org-agenda :before
+            (lambda (&rest _)
+              (jw/revert-org-buffers)))
+
 ;; Disable org-lint flycheck checker (noisy on machine-generated files)
 (after! flycheck
   (setq-default flycheck-disabled-checkers '(org-lint)))
