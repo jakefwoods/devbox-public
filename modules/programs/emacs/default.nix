@@ -99,6 +99,9 @@
             pkgs.sqlite
             pkgs.graphviz
 
+            # for org-wiki (local HTML publishing)
+            pkgs.fswatch
+
             # for org-download (i.e. +dragndrop)
             pkgs.xclip
 

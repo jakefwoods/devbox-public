@@ -36,7 +36,8 @@
 
 (after! org-roam
   (setq org-roam-directory "~/org/"
-        org-roam-dailies-directory "journal/"))
+        org-roam-dailies-directory "journal/"
+        org-roam-completion-everywhere t))
 
 ;; ── org-journal ──────────────────────────────────────────────────────
 
@@ -45,3 +46,7 @@
         org-journal-file-type 'daily
         org-journal-file-format "%Y%m%d.org"
         org-journal-carryover-items ""))
+
+;; ── org-wiki ─────────────────────────────────────────────────────────
+
+(load! "org-wiki-publish")
