@@ -13,7 +13,17 @@
         ;; Include org-journal formatted files in the agenda
         org-agenda-file-regexp "\\`\\([^.].*\\.org\\|[0-9]\\{8\\}\\(\\.gpg\\)?\\)\\'"
         ;; TODO keywords for goal tracking
-        org-todo-keywords '((sequence "TODO" "BLOCKED" "|" "DONE" "CANCELLED"))))
+        org-todo-keywords '((sequence "TODO" "BLOCKED" "|" "DONE" "CANCELLED"))
+        ;; Custom agenda views
+        org-agenda-custom-commands
+        '(("a" "Agenda + actionable"
+           ((agenda "" nil)
+            (todo "TODO"
+                  ((org-agenda-overriding-header "Actionable next steps")
+                   (org-agenda-skip-function 'jw/skip-non-actionable)))))
+          ("t" "Actionable TODOs" todo "TODO"
+           ((org-agenda-skip-function 'jw/skip-non-actionable)))
+          ("T" "All TODOs (full tree)" todo "TODO"))))
 
 ;; ── actionable goals ─────────────────────────────────────────────────
 
@@ -27,16 +37,6 @@ TODOs (or parents whose children are all DONE) are actionable."
           (re-search-forward org-not-done-heading-regexp subtree-end t))
         subtree-end
       nil)))
-
-(setq org-agenda-custom-commands
-      '(("a" "Agenda + actionable"
-         ((agenda "" nil)
-          (todo "TODO"
-                ((org-agenda-overriding-header "Actionable next steps")
-                 (org-agenda-skip-function 'jw/skip-non-actionable)))))
-        ("t" "Actionable TODOs" todo "TODO"
-         ((org-agenda-skip-function 'jw/skip-non-actionable)))
-        ("T" "All TODOs (full tree)" todo "TODO")))
 
 ;; Silently revert org buffers before building agenda (external tools write files)
 (defun jw/revert-org-buffers ()

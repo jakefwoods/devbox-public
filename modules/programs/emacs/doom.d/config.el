@@ -111,3 +111,12 @@
 (load! "modules/org/init")
 (load! "modules/scala")
 (load! "modules/csharp")
+
+;; ── doom-local: machine-specific config overlay ──────────────────────
+;; Load all .el files from ~/.config/doom-local/ (provided by the private
+;; repo via mutableInputs). This is where machine- or org-specific config
+;; lives (e.g. agenda file filters, private keybindings).
+(let ((doom-local-dir (expand-file-name "doom-local" (xdg-config-home))))
+  (when (file-directory-p doom-local-dir)
+    (dolist (f (directory-files doom-local-dir t "\\.el$"))
+      (load f nil 'nomessage))))

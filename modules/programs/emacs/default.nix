@@ -16,22 +16,6 @@
         doomRepoUrl = "https://github.com/doomemacs/doomemacs";
       in
       {
-        options.local.emacs.doomSource = lib.mkOption {
-          type = lib.types.nullOr lib.types.str;
-          default = null;
-          description = ''
-            Absolute path to a doom.d directory on the host's filesystem,
-            used as a live-edit out-of-store symlink so changes take effect
-            without a home-manager rebuild.
-
-            When null (the default), the doom.d shipped alongside this aspect
-            is symlinked into ~/.config/doom via a regular store-path link,
-            pinned to the flake input revision. Set this on hosts where you
-            keep a working copy of the source and want to iterate on the
-            doom config in place.
-          '';
-        };
-
         config = {
           # Apply the emacs-overlay so `pkgs.emacs-macport` (and friends) are
           # available in standalone home-manager too. In NixOS the same overlay
@@ -127,15 +111,7 @@
             fi
           '';
 
-          # Two modes:
-          #   - default (no override): regular store-path symlink to the doom.d
-          #     shipped next to this aspect, pinned to the flake input.
-          #   - override: out-of-store symlink to a working copy on disk for
-          #     live editing.
-          xdg.configFile."doom".source =
-            if config.local.emacs.doomSource == null
-            then ./doom.d
-            else config.lib.file.mkOutOfStoreSymlink config.local.emacs.doomSource;
+          xdg.configFile."doom".source = config.lib.mutableInputs.link ./doom.d;
         };
       };
     };
