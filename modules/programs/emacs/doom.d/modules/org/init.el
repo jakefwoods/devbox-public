@@ -3,7 +3,7 @@
 ;; ── org-agenda ───────────────────────────────────────────────────────
 
 (after! org
-  (setq org-agenda-files '("~/org/events/" "~/org/journal/")
+  (setq org-agenda-files (directory-files-recursively "~/org/" "\\.org$")
         ;; Use Doom's defaults for span/start (week view, -3d)
         ;; SPC o a a shows rolling week with 3 days context behind
         org-agenda-todo-ignore-scheduled 'future
@@ -11,7 +11,32 @@
         ;; Cleaner prefix: just time, no category/filename
         org-agenda-prefix-format '((agenda . "  %t ") (todo . " %i ") (tags . " %i ") (search . " %i "))
         ;; Include org-journal formatted files in the agenda
-        org-agenda-file-regexp "\\`\\([^.].*\\.org\\|[0-9]\\{8\\}\\(\\.gpg\\)?\\)\\'"))
+        org-agenda-file-regexp "\\`\\([^.].*\\.org\\|[0-9]\\{8\\}\\(\\.gpg\\)?\\)\\'"
+        ;; TODO keywords for goal tracking
+        org-todo-keywords '((sequence "TODO" "BLOCKED" "|" "DONE" "CANCELLED"))))
+
+;; ── actionable goals ─────────────────────────────────────────────────
+
+(defun jw/skip-non-actionable ()
+  "Skip TODOs that have incomplete TODO children (blocked by subtasks).
+A parent goal is implicitly blocked by its children — only leaf-level
+TODOs (or parents whose children are all DONE) are actionable."
+  (let ((subtree-end (save-excursion (org-end-of-subtree t))))
+    (if (save-excursion
+          (forward-line 1)
+          (re-search-forward org-not-done-heading-regexp subtree-end t))
+        subtree-end
+      nil)))
+
+(setq org-agenda-custom-commands
+      '(("a" "Agenda + actionable"
+         ((agenda "" nil)
+          (todo "TODO"
+                ((org-agenda-overriding-header "Actionable next steps")
+                 (org-agenda-skip-function 'jw/skip-non-actionable)))))
+        ("t" "Actionable TODOs" todo "TODO"
+         ((org-agenda-skip-function 'jw/skip-non-actionable)))
+        ("T" "All TODOs (full tree)" todo "TODO")))
 
 ;; Silently revert org buffers before building agenda (external tools write files)
 (defun jw/revert-org-buffers ()
