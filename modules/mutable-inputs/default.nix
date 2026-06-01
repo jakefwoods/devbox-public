@@ -360,6 +360,7 @@ ${content}
 MUTABLE_FLAKE_EOF
 
                       ${git} -C ${lib.escapeShellArg mutableDir} add flake.nix
+                      ${git} -C ${lib.escapeShellArg mutableDir} add flake.lock 2>/dev/null || true
                       ${git} -C ${lib.escapeShellArg mutableDir} diff --cached --quiet 2>/dev/null \
                         || ${git} -C ${lib.escapeShellArg mutableDir} commit -m "mutableInputs: update overrides" --quiet 2>/dev/null || true
                     ''
