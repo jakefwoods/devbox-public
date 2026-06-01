@@ -28,18 +28,17 @@
 #
 # ── Usage (symlinked config) ─────────────────────────────────────────
 #
-# Per-flake: Declare which inputs you want to support mutability:
+# Register mutable inputs:
 #
-#   local.mutableInputs.inputs.devbox-private.flakeInput = inputs.self;
+#   local.mutableInputs.inputs.devbox-private.flakeInput = inputs.self;      # self-mutability
 #   local.mutableInputs.inputs.devbox-public.flakeInput = inputs.devbox-public;
 #
-# Per-host: Declare if you want to use mutable inputs, and where the working copies should go:
+# Enable mutability:
 #
 #   local.mutableInputs.enable = true;
 #   local.mutableInputs.root = "${config.home.homeDirectory}/src";
-#   local.mutableInputs.lockFlake = inputs.self;
 #
-# In any aspect, use `link` as a replacement for `mkOutOfStoreSymlink``:
+# In any aspect, use `link` as a replacement for `mkOutOfStoreSymlink`:
 #
 #   xdg.configFile."doom".source = config.lib.mutableInputs.link ./doom.d;
 #
@@ -58,17 +57,20 @@
 #
 # On each activation:
 #   1. Each registered input is cloned (or rebased) to `${local.mutableInputs.root}/<name>/` using
-#      the URL and rev from the consumer's flake.lock.
-#   2. A `.mutable/` directory is created inside any repo that defines `lockFlake` (typically your 'leaf' repos)
-#      it's own .git (so nix treats it as a separate source tree). This repo should be added to .gitignore.
-#   3. .mutable/flake.nix is generated with git+file:// overrides
-#      that point each input at its local working copy, then re-exports the
-#      consumer flake's outputs unchanged.
+#      the URL and rev from the top-level flake's flake.lock.
+#   2. For each registered input, we inspect its resolved dependencies (flakeInput.inputs)
+#      and compare each dep's identity against the mutable set. If any dep matches another
+#      registered mutable input, a `.mutable/` sub-flake is generated in that repo.
+#   3. Each `.mutable/flake.nix` uses git+file:// overrides pointing at sibling working
+#      copies, then re-exports the repo's own outputs unchanged.
 #
-# The consumer repo's .gitignore includes .mutable/, so it never
-# appears in version control. The nested .git gives nix a clean source
-# tree to evaluate without polluting the parent repo's VCS state.
-# 
+# The `.mutable/` directories have their own .git (so nix treats them as separate source trees)
+# and should be added to each repo's .gitignore.
+#
+# Identity matching uses `toString` on resolved flake inputs — two inputs match only if they
+# resolve to the same store path. This means inputs unified via `follows` are detected
+# automatically, while independently-pinned copies of the same upstream are left alone.
+#
 # ── Bootstrapping ────────────────────────────────────────────────────
 #
 # Say you run one of these for the first time:
@@ -77,7 +79,7 @@
 #    home-manager switch --flake github:<you>/<your-flake>
 #
 # This will work fine even if nothing has been cloned. On first run mutableInputs will activate, clone the repos per your configuration
-# and set up the `.mutable` sub-flake in any repos that defined `rootFlake`. Ready for dev!
+# and set up the `.mutable` sub-flake in any repos that have overlapping mutable dependencies. Ready for dev!
 {
   flake.aspects = { aspects, ... }: {
     mutableInputs = {
@@ -87,13 +89,25 @@
       let
         cfg = config.local.mutableInputs;
 
-        # Read the lock file from the consuming flake (if lockFlake is set)
-        # to derive clone URLs and pinned revs for registered inputs.
+        # Resolve the working copy path for a registered input.
+        # Uses the per-input path override if set, otherwise ${root}/<name>.
+        pathFor = name:
+          let p = cfg.inputs.${name}.path;
+          in if p != null then p else "${cfg.root}/${name}";
+
+        # The top-level flake (inputs.self from flake-parts module args).
+        # Used to read flake.lock for clone URLs and pinned revs.
+        topFlake = inputs.self;
+
+        # Read the top-level flake's lock file to derive clone URLs and pinned revs.
+        lockPath = topFlake.outPath + "/flake.lock";
         lockData =
-          if cfg.lockFlake != null
-          then builtins.fromJSON
-            (builtins.readFile (cfg.lockFlake.outPath + "/flake.lock"))
-          else { nodes = {}; };
+          if builtins.pathExists lockPath
+          then builtins.fromJSON (builtins.readFile lockPath)
+          else throw ''
+            mutableInputs: No flake.lock found at ${lockPath}.
+            Run 'nix flake lock' to generate a lock file before enabling mutableInputs.
+          '';
 
         # Resolve an input name to its lock file node, following the root
         # input mapping (handles renamed nodes like "nixpkgs_2").
@@ -130,36 +144,53 @@
           nix = "${pkgs.nix}/bin/nix";
         };
 
-        # Identify which registered inputs are NOT the consumer itself (i.e.
-        # not self). These are the inputs we override in .mutable/flake.nix.
-        # The consumer repo's own input (typically "jakewoods") has
-        # flakeInput == inputs.self, and its working copy IS the repo that
-        # contains .mutable/ — so it's represented by `real.url = "path:.."`.
-        selfInputName = lib.findFirst
-          (name: toString cfg.inputs.${name}.flakeInput == toString cfg.lockFlake)
-          null
-          (lib.attrNames cfg.inputs);
+        # For a given registered input, compute the set of overrides needed
+        # for its .mutable/flake.nix. An override is needed when one of the
+        # input's resolved dependencies matches (by identity) another
+        # registered mutable input.
+        #
+        # Returns an attrset: { <depName> = <mutableName>; ... }
+        # where depName is the name the repo uses for that input internally,
+        # and mutableName is the key in our mutable set (= directory name under root).
+        overridesFor = name:
+          let
+            flake = cfg.inputs.${name}.flakeInput;
+            flakeInputs = flake.inputs or {};
+            mutableNames = lib.attrNames cfg.inputs;
+          in
+            lib.foldlAttrs (acc: depName: depFlake:
+              let
+                # Find the mutable input whose identity matches this dep.
+                matchingMutable = lib.findFirst
+                  (mutableName:
+                    mutableName != name &&
+                    toString cfg.inputs.${mutableName}.flakeInput == toString depFlake)
+                  null
+                  mutableNames;
+              in
+                if matchingMutable != null
+                then acc // { ${depName} = matchingMutable; }
+                else acc
+            ) {} flakeInputs;
 
-        overrideInputs = lib.filterAttrs
-          (name: _: name != selfInputName)
-          cfg.inputs;
-
-        # Generate the .mutable/flake.nix content with git+file:// overrides.
-        mutableFlakeContent =
+        # Generate .mutable/flake.nix content for a given repo.
+        # overrides: { <depName> = <mutableName>; ... }
+        mutableFlakeContentFor = name: overrides:
           let
             inputDecls = lib.concatMapStringsSep "\n"
-              (name: "    ${name}.url = \"git+file://${cfg.root}/${name}\";")
-              (lib.attrNames overrideInputs);
+              (depName:
+                let mutableName = overrides.${depName};
+                in "    ${depName}.url = \"git+file://${pathFor mutableName}\";")
+              (lib.attrNames overrides);
             followsDecls = lib.concatMapStringsSep "\n"
-              (name: "    real.inputs.${name}.follows = \"${name}\";")
-              (lib.attrNames overrideInputs);
-           in ''
+              (depName: "    real.inputs.${depName}.follows = \"${depName}\";")
+              (lib.attrNames overrides);
+          in ''
 # Auto-generated by mutableInputs. Do not edit manually.
 # Regenerated on each home-manager activation.
-# Use: nix build .mutable#homeConfigurations.<host>.activationPackage
 {
   inputs = {
-    real.url = "git+file://${consumerRepoPath}";
+    real.url = "git+file://${pathFor name}";
 ${inputDecls}
 ${followsDecls}
   };
@@ -167,13 +198,15 @@ ${followsDecls}
 }
 '';
 
-        # Path to the .mutable directory in the consumer repo.
-        # The consumer repo is identified by looking for the self input's
-        # working copy location.
-        consumerRepoPath =
-          if selfInputName != null
-          then "${cfg.root}/${selfInputName}"
-          else null;
+        # Compute which repos need .mutable/ generation.
+        # Result: { <name> = { overrides = {...}; content = "..."; }; ... }
+        reposNeedingMutable = lib.filterAttrs (_: v: v.overrides != {})
+          (lib.mapAttrs (name: _: let
+            overrides = overridesFor name;
+          in {
+            inherit overrides;
+            content = mutableFlakeContentFor name overrides;
+          }) cfg.inputs);
 
         # The link function: given a nix path, determines which registered
         # input it belongs to and returns either a mutable symlink or the
@@ -199,7 +232,7 @@ ${followsDecls}
                   pathStr;
               in
                 config.lib.file.mkOutOfStoreSymlink
-                  "${cfg.root}/${matchingInput}${relativePath}";
+                  "${pathFor matchingInput}${relativePath}";
 
       in {
         options.local.mutableInputs = {
@@ -226,16 +259,6 @@ ${followsDecls}
             example = "/home/user/work";
           };
 
-          lockFlake = lib.mkOption {
-            type = lib.types.nullOr lib.types.raw;
-            default = null;
-            description = ''
-              The root flake whose flake.lock is used to derive clone URLs
-              and pinned revs for registered inputs. Typically set to
-              inputs.self by the consuming flake.
-            '';
-          };
-
           inputs = lib.mkOption {
             type = lib.types.attrsOf (lib.types.submodule ({ name, ... }: {
               options = {
@@ -244,15 +267,27 @@ ${followsDecls}
                   description = ''
                     The flake input this entry corresponds to. Used for:
                     - link function prefix matching (toString gives store path)
-                    - Determining clone URL from lockFlake's flake.lock
+                    - Identity comparison for .mutable/ overlap detection
+                    - Clone URL derivation from the top-level flake.lock
                   '';
+                };
+
+                path = lib.mkOption {
+                  type = lib.types.nullOr lib.types.str;
+                  default = null;
+                  description = ''
+                    Override the working copy path for this input.
+                    Defaults to <root>/<name> when null.
+                  '';
+                  example = "/home/coder/.dotfiles";
                 };
               };
             }));
             default = {};
             description = ''
               Flake inputs to make available as mutable working copies.
-              The attrset key is used as the directory name under root.
+              The attrset key is used as the directory name under root
+              (unless overridden by path).
             '';
           };
         };
@@ -260,19 +295,20 @@ ${followsDecls}
         config = {
           assertions = [
             {
-              assertion = cfg.enable -> cfg.root != "";
-              message = ''
-                local.mutableInputs.root must be set when local.mutableInputs.enable is true.
-                Set it to the directory containing your mutable repo clones, e.g.:
-                  local.mutableInputs.root = "''${config.home.homeDirectory}/work";
-              '';
-            }
-            {
-              assertion = cfg.enable -> consumerRepoPath != null;
-              message = ''
-                local.mutableInputs: cannot determine consumer repo path.
-                Ensure one of your mutableInputs.inputs has flakeInput = inputs.self
-                (pointing to the flake that contains .mutable/).
+              assertion = cfg.enable -> lib.all
+                (name: cfg.inputs.${name}.path != null || cfg.root != "")
+                (lib.attrNames cfg.inputs);
+              message = let
+                unresolved = lib.filter
+                  (name: cfg.inputs.${name}.path == null && cfg.root == "")
+                  (lib.attrNames cfg.inputs);
+              in ''
+                mutableInputs: the following inputs have no resolvable path:
+                  ${lib.concatStringsSep ", " unresolved}
+
+                Either set local.mutableInputs.root (applies to all inputs) or set
+                a per-input path, e.g.:
+                  local.mutableInputs.inputs.${lib.head unresolved}.path = "/path/to/clone";
               '';
             }
           ];
@@ -285,13 +321,15 @@ ${followsDecls}
           home.activation.mutableInputsSync = lib.mkIf cfg.enable
             (lib.hm.dag.entryBetween [ "linkGeneration" ] [ "writeBoundary" ]
               (let
-                # Clone/sync commands for each input.
+                git = "${pkgs.git}/bin/git";
+
+                # Clone/sync commands for each registered input.
                 syncCommands = lib.concatStringsSep "\n"
                   (lib.mapAttrsToList (name: _inputCfg:
                     let
                       cloneUrl = cloneUrlFor name;
                       rev = pinnedRevFor name;
-                      dest = "${cfg.root}/${name}";
+                      dest = pathFor name;
                     in
                       if cloneUrl == null then ''
                         # --- ${name}: no clone URL available ---
@@ -305,34 +343,42 @@ ${followsDecls}
                       ''
                   ) cfg.inputs);
 
-                mutableDir = "${consumerRepoPath}/.mutable";
-                git = "${pkgs.git}/bin/git";
+                # Generate .mutable/ for each repo that has overlapping mutable deps.
+                mutableGenCommands = lib.concatStringsSep "\n"
+                  (lib.mapAttrsToList (name: { content, ... }:
+                    let
+                      mutableDir = "${pathFor name}/.mutable";
+                    in ''
+                      # --- ${name}: generate .mutable/ ---
+                      mkdir -p ${lib.escapeShellArg mutableDir}
+                      if [ ! -d ${lib.escapeShellArg "${mutableDir}/.git"} ]; then
+                        ${git} -C ${lib.escapeShellArg mutableDir} init --quiet 2>/dev/null
+                      fi
 
-                # Generate .mutable/flake.nix with local overrides.
-                # The .mutable/ directory is:
-                #   - Listed in the parent repo's .gitignore (invisible to jj/git)
-                #   - Has its own .git (so nix can see flake.nix via git index)
-                # This gives us `nix build .mutable#...` that uses local working
-                # copies, while the parent repo's VCS stays permanently clean.
-                mutableGenCommands = ''
-                  # --- Ensure .mutable/ is its own git repo ---
-                  mkdir -p ${lib.escapeShellArg mutableDir}
-                  if [ ! -d ${lib.escapeShellArg "${mutableDir}/.git"} ]; then
-                    ${git} -C ${lib.escapeShellArg mutableDir} init 2>/dev/null
-                  fi
-
-                  # --- Generate .mutable/flake.nix with local overrides ---
-                  cat > ${lib.escapeShellArg "${mutableDir}/flake.nix"} << 'MUTABLE_FLAKE_EOF'
-${mutableFlakeContent}
+                      cat > ${lib.escapeShellArg "${mutableDir}/flake.nix"} << 'MUTABLE_FLAKE_EOF'
+${content}
 MUTABLE_FLAKE_EOF
 
-                  # --- Commit so nix sees a clean source tree (no dirty warning) ---
-                  ${git} -C ${lib.escapeShellArg mutableDir} add flake.nix
-                  ${git} -C ${lib.escapeShellArg mutableDir} diff --cached --quiet 2>/dev/null \
-                    || ${git} -C ${lib.escapeShellArg mutableDir} commit -m "mutableInputs: update overrides" --quiet 2>/dev/null || true
-                '';
+                      ${git} -C ${lib.escapeShellArg mutableDir} add flake.nix
+                      ${git} -C ${lib.escapeShellArg mutableDir} diff --cached --quiet 2>/dev/null \
+                        || ${git} -C ${lib.escapeShellArg mutableDir} commit -m "mutableInputs: update overrides" --quiet 2>/dev/null || true
+                    ''
+                  ) reposNeedingMutable);
+
+                # Remove stale .mutable/ from repos that no longer have overlapping deps.
+                staleRepos = lib.filterAttrs (name: _: !(reposNeedingMutable ? ${name})) cfg.inputs;
+                cleanupCommands = lib.concatStringsSep "\n"
+                  (lib.mapAttrsToList (name: _:
+                    let mutableDir = "${pathFor name}/.mutable";
+                    in ''
+                      if [ -d ${lib.escapeShellArg mutableDir} ]; then
+                        echo "mutableInputs: removing stale .mutable/ from ${name}"
+                        rm -rf ${lib.escapeShellArg mutableDir}
+                      fi
+                    ''
+                  ) staleRepos);
               in
-                syncCommands + "\n" + mutableGenCommands));
+                syncCommands + "\n" + mutableGenCommands + "\n" + cleanupCommands));
         };
       };
     };
