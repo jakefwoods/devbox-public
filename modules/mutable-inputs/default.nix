@@ -1,43 +1,83 @@
 { inputs, ... }:
 
-# The mutableInputs aspect provides a mechanism for flake-based dotfile
-# management that supports live-editing without rebuilds.
+# Live-editable flake inputs.
 #
-# When enabled on a host, flake inputs registered as mutable are:
-#   1. Cloned as working copies to `root/<name>/`
-#   2. Kept in sync with the consumer's flake.lock pin (rebase strategy)
-#   3. Made available via .mutable/flake.nix for transparent local eval
+# ── Problem ──────────────────────────────────────────────────────────
 #
-# Aspects use `config.lib.mutableInputs.link ./path` which transparently
-# returns either a mutable symlink (if enabled) or the readonly nix store
-# path (if disabled).
+# Nix flake inputs are immutable. This is great for reproducibility but is
+# annoying when iterating on config: editing a dotfile means a commit,
+# push and rebuild.
 #
-# The consumer repo commits a passthrough .mutable/flake.nix that re-exports
-# the parent flake's outputs. On activation, this file is rewritten with
-# git+file:// overrides pointing at local working copies, and VCS is
-# configured to ignore the local modifications (jj snapshot.auto-track /
-# git skip-worktree). This means `nix build .mutable#...` uses local
-# working copies while `nix build .#...` uses locked remote inputs.
+# Similarly, working on a flake's upstream dependency is annoying, if you
+# change your local copy of nixpkgs you need to remember to `--override-input`
+# every time.
 #
-# Usage (in a consuming flake like jakewoods):
+# home-manager's mkOutOfStoreSymlink solves the symlink half, but it's annoying
+# to work with: You have to provide absolute paths, and you have to clone the
+# repository yourself, breaking `nix run github:you/your-flake`.
 #
-#   # Host config enables and configures:
-#   local.mutableInputs.enable = true;
-#   local.mutableInputs.root = "${config.home.homeDirectory}/work";
-#   local.mutableInputs.lockFlake = inputs.self;
+# ── Approach ─────────────────────────────────────────────────────────
 #
-#   # Register inputs you want mutable:
-#   local.mutableInputs.inputs.jakewoods.flakeInput = inputs.self;
+# The core idea of mutableInputs is to define your mutable inputs declaratively in nix,
+# and have nix manage them. If we can guarantee that working copies of our flake inputs exist
+# in a known location, then we can provide much more ergonomic symlink definitions for
+# config and in-progress changes to our inputs.
+#
+# Also, if a specific target doesn't want mutability it shouldn't be a problem: The system will automatically
+# do normal /nix/store read-only symlinks and call it a day.
+#
+# ── Usage (symlinked config) ─────────────────────────────────────────
+#
+# Per-flake: Declare which inputs you want to support mutability:
+#
+#   local.mutableInputs.inputs.devbox-private.flakeInput = inputs.self;
 #   local.mutableInputs.inputs.devbox-public.flakeInput = inputs.devbox-public;
 #
-#   # In any aspect, link files:
+# Per-host: Declare if you want to use mutable inputs, and where the working copies should go:
+#
+#   local.mutableInputs.enable = true;
+#   local.mutableInputs.root = "${config.home.homeDirectory}/src";
+#   local.mutableInputs.lockFlake = inputs.self;
+#
+# In any aspect, use `link` as a replacement for `mkOutOfStoreSymlink``:
+#
 #   xdg.configFile."doom".source = config.lib.mutableInputs.link ./doom.d;
 #
-# Upstream repos can declare optional mutable deps (inert unless consumer
-# enables mutableInputs):
+# If mutableInputs is enabled and ./doom.d lives inside a registered input, link returns a symlink to the mutable working copy.
+# Otherwise it returns a normal read-only store path.
 #
-#   local.mutableInputs.inputs.nixpkgs.flakeInput = lib.mkDefault inputs.nixpkgs;
+# ── Usage (input development) ─────────────────────────────────────────
 #
+# Say you change `devbox-public` and want to test those changes in `devbox-private`, `mutableInputs` generates
+# a `.mutable` sub-flake on activation in the local working copy. `.mutable` is automatically generated to be the same
+# as your root flake, except its dependencies are routed to your local working copies. So in `devbox-private` you could run:
+#
+#   home-manager switch --flake .mutable    # eval devbox-private using the local copies of devbox-public including your changes
+#
+# ── How it works ─────────────────────────────────────────────────────
+#
+# On each activation:
+#   1. Each registered input is cloned (or rebased) to `${local.mutableInputs.root}/<name>/` using
+#      the URL and rev from the consumer's flake.lock.
+#   2. A `.mutable/` directory is created inside any repo that defines `lockFlake` (typically your 'leaf' repos)
+#      it's own .git (so nix treats it as a separate source tree). This repo should be added to .gitignore.
+#   3. .mutable/flake.nix is generated with git+file:// overrides
+#      that point each input at its local working copy, then re-exports the
+#      consumer flake's outputs unchanged.
+#
+# The consumer repo's .gitignore includes .mutable/, so it never
+# appears in version control. The nested .git gives nix a clean source
+# tree to evaluate without polluting the parent repo's VCS state.
+# 
+# ── Bootstrapping ────────────────────────────────────────────────────
+#
+# Say you run one of these for the first time:
+#
+#    home-manager switch --flake .
+#    home-manager switch --flake github:<you>/<your-flake>
+#
+# This will work fine even if nothing has been cloned. On first run mutableInputs will activate, clone the repos per your configuration
+# and set up the `.mutable` sub-flake in any repos that defined `rootFlake`. Ready for dev!
 {
   flake.aspects = { aspects, ... }: {
     mutableInputs = {
@@ -113,13 +153,13 @@
             followsDecls = lib.concatMapStringsSep "\n"
               (name: "    real.inputs.${name}.follows = \"${name}\";")
               (lib.attrNames overrideInputs);
-          in ''
+           in ''
 # Auto-generated by mutableInputs. Do not edit manually.
 # Regenerated on each home-manager activation.
 # Use: nix build .mutable#homeConfigurations.<host>.activationPackage
 {
   inputs = {
-    real.url = "path:..";
+    real.url = "git+file://${consumerRepoPath}";
 ${inputDecls}
 ${followsDecls}
   };
