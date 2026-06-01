@@ -1,5 +1,13 @@
 ;;; programs/emacs/doom.d/modules/org/init.el -*- lexical-binding: t; -*-
 
+;; ── org-modern ───────────────────────────────────────────────────────
+
+;; Doom's +pretty already loads org-modern. Override fold-stars to avoid
+;; U+2BC6/U+2BC8 (level 3) which many fonts lack glyphs for.
+(after! org-modern
+  (setq org-modern-fold-stars
+        '(("▶" . "▼") ("▷" . "▽") ("▸" . "▾") ("▹" . "▿") ("►" . "▾"))))
+
 ;; ── org-agenda ───────────────────────────────────────────────────────
 
 (after! org
