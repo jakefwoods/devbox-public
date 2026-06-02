@@ -21,30 +21,46 @@
         ;; Include org-journal formatted files in the agenda
         org-agenda-file-regexp "\\`\\([^.].*\\.org\\|[0-9]\\{8\\}\\(\\.gpg\\)?\\)\\'"
         ;; TODO keywords for goal tracking
-        org-todo-keywords '((sequence "TODO" "BLOCKED" "|" "DONE" "CANCELLED"))
+        org-todo-keywords '((sequence "TODO" "ACTIVE" "BLOCKED" "|" "DONE" "CANCELLED"))
         ;; Custom agenda views
         org-agenda-custom-commands
-        '(("a" "Agenda + actionable"
+        '(("A" "Active goals (scope overview)" todo "ACTIVE")
+          ("a" "Agenda + actionable"
            ((agenda "" nil)
-            (todo "TODO"
+            (todo "TODO|ACTIVE"
                   ((org-agenda-overriding-header "Actionable next steps")
                    (org-agenda-skip-function 'jw/skip-non-actionable)))))
-          ("t" "Actionable TODOs" todo "TODO"
+          ("t" "Actionable TODOs" todo "TODO|ACTIVE"
            ((org-agenda-skip-function 'jw/skip-non-actionable)))
-          ("T" "All TODOs (full tree)" todo "TODO"))))
+          ("T" "All TODOs (full tree)" todo "TODO|ACTIVE|BLOCKED"))))
 
 ;; ── actionable goals ─────────────────────────────────────────────────
 
+(defun jw/has-active-ancestor-p ()
+  "Return non-nil if current heading or any ancestor has ACTIVE state."
+  (or (string= (org-get-todo-state) "ACTIVE")
+      (save-excursion
+        (while (and (org-up-heading-safe)
+                    (not (string= (org-get-todo-state) "ACTIVE"))))
+        (string= (org-get-todo-state) "ACTIVE"))))
+
 (defun jw/skip-non-actionable ()
-  "Skip TODOs that have incomplete TODO children (blocked by subtasks).
-A parent goal is implicitly blocked by its children — only leaf-level
-TODOs (or parents whose children are all DONE) are actionable."
+  "Skip entries that aren't actionable.
+An entry is actionable if:
+  1. It has no incomplete TODO/ACTIVE/BLOCKED children (leaf or all-done parent)
+  2. It has at least one ACTIVE ancestor (or is itself ACTIVE)"
   (let ((subtree-end (save-excursion (org-end-of-subtree t))))
-    (if (save-excursion
-          (forward-line 1)
-          (re-search-forward org-not-done-heading-regexp subtree-end t))
-        subtree-end
-      nil)))
+    (cond
+     ;; Has undone children → blocked by subtasks, skip
+     ((save-excursion
+        (forward-line 1)
+        (re-search-forward org-not-done-heading-regexp subtree-end t))
+      subtree-end)
+     ;; No ACTIVE ancestor (and not itself ACTIVE) → not on frontier, skip
+     ((not (jw/has-active-ancestor-p))
+      subtree-end)
+     ;; Actionable
+     (t nil))))
 
 ;; Silently revert org buffers before building agenda (external tools write files)
 (defun jw/revert-org-buffers ()
