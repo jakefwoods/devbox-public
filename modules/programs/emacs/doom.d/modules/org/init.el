@@ -33,6 +33,9 @@
            ((agenda "" nil)
             (todo "TODO|ACTIVE"
                   ((org-agenda-overriding-header "Actionable next steps")
+                   (org-agenda-skip-function 'jw/skip-non-actionable)))
+            (todo "BLOCKED"
+                  ((org-agenda-overriding-header "Waiting on...")
                    (org-agenda-skip-function 'jw/skip-non-actionable)))))
           ("t" "Actionable TODOs" todo "TODO|ACTIVE"
            ((org-agenda-skip-function 'jw/skip-non-actionable)))
