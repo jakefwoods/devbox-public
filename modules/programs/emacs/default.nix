@@ -11,7 +11,7 @@
         nixpkgs.overlays = [ inputs.emacs-overlay.overlay ];
       };
 
-      homeManager = { config, pkgs, lib, ... }:
+      homeManager = { config, pkgs, lib, osConfig ? null, ... }:
       let
         doomRepoUrl = "https://github.com/doomemacs/doomemacs";
       in
@@ -20,7 +20,11 @@
           # Apply the emacs-overlay so `pkgs.emacs-macport` (and friends) are
           # available in standalone home-manager too. In NixOS the same overlay
           # is applied via the nixos block above.
-          nixpkgs.overlays = [ inputs.emacs-overlay.overlay ];
+          #
+          # osConfig == null: Standalone home-manager, since it is an error to do this
+          # when using home-manager as a nixos module.
+          nixpkgs.overlays =
+            lib.mkIf (osConfig == null) [ inputs.emacs-overlay.overlay ];
 
           programs.emacs = {
             enable = true;
