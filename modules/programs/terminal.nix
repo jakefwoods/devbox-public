@@ -5,7 +5,7 @@
     terminal = {
       description = "Terminal utilities and shell configuration";
 
-      homeManager = { pkgs, lib, ... }:
+      homeManager = { config, pkgs, lib, ... }:
       let
         shellAliases = {
           top = "bottom";
@@ -30,6 +30,9 @@
         # (and therefore picks up home.sessionPath additions like Doom's bin).
         programs.zsh = {
           enable = true;
+          # Lock in the legacy default ($HOME) so the upcoming home-manager
+          # behaviour change (XDG config dir) doesn't silently move ~/.zshrc.
+          dotDir = config.home.homeDirectory;
           inherit shellAliases;
         };
 
