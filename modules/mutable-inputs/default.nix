@@ -180,7 +180,7 @@
             inputDecls = lib.concatMapStringsSep "\n"
               (depName:
                 let mutableName = overrides.${depName};
-                in "    ${depName}.url = \"git+file://${pathFor mutableName}\";")
+                in "    ${depName}.url = \"git+file://${pathFor mutableName}?ref=${cfg.inputs.${mutableName}.ref}\";")
               (lib.attrNames overrides);
             followsDecls = lib.concatMapStringsSep "\n"
               (depName: "    real.inputs.${depName}.follows = \"${depName}\";")
@@ -190,7 +190,7 @@
 # Regenerated on each home-manager activation.
 {
   inputs = {
-    real.url = "git+file://${pathFor name}";
+    real.url = "git+file://${pathFor name}?ref=${cfg.inputs.${name}.ref}";
 ${inputDecls}
 ${followsDecls}
   };
@@ -280,6 +280,17 @@ ${followsDecls}
                     Defaults to <root>/<name> when null.
                   '';
                   example = "/home/coder/.dotfiles";
+                };
+
+                ref = lib.mkOption {
+                  type = lib.types.str;
+                  default = "main";
+                  description = ''
+                    Git ref to use in generated git+file:// URLs for .mutable/.
+                    Required for jj-colocated repos where HEAD is a detached
+                    bare SHA that Nix cannot resolve. Defaults to "main".
+                  '';
+                  example = "master";
                 };
               };
             }));
