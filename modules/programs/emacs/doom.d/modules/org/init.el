@@ -12,10 +12,14 @@
 
 (after! org
   (setq org-agenda-files (directory-files-recursively "~/org/" "\\.org$")
-        ;; Use Doom's defaults for span/start (week view, -3d)
-        ;; SPC o a a shows rolling week with 3 days context behind
+        ;; Today only — no rolling week
+        org-agenda-span 'day
+        org-agenda-start-day nil
         org-agenda-todo-ignore-scheduled 'future
         org-agenda-skip-deadline-prewarning-if-scheduled 'pre-scheduled
+        ;; :ORDERED: t support — hide blocked siblings from agenda
+        org-enforce-todo-dependencies t
+        org-agenda-dim-blocked-tasks 'invisible
         ;; Cleaner prefix: just time, no category/filename
         org-agenda-prefix-format '((agenda . "  %t ") (todo . " %i ") (tags . " %i ") (search . " %i "))
         ;; Include org-journal formatted files in the agenda
@@ -38,29 +42,20 @@
 
 (defun jw/has-active-ancestor-p ()
   "Return non-nil if current heading or any ancestor has ACTIVE state."
-  (or (string= (org-get-todo-state) "ACTIVE")
-      (save-excursion
-        (while (and (org-up-heading-safe)
-                    (not (string= (org-get-todo-state) "ACTIVE"))))
-        (string= (org-get-todo-state) "ACTIVE"))))
+  (save-restriction
+    (widen)
+    (or (string= (org-get-todo-state) "ACTIVE")
+        (save-excursion
+          (while (and (org-up-heading-safe)
+                      (not (string= (org-get-todo-state) "ACTIVE"))))
+          (string= (org-get-todo-state) "ACTIVE")))))
 
 (defun jw/skip-non-actionable ()
-  "Skip entries that aren't actionable.
-An entry is actionable if:
-  1. It has no incomplete TODO/ACTIVE/BLOCKED children (leaf or all-done parent)
-  2. It has at least one ACTIVE ancestor (or is itself ACTIVE)"
-  (let ((subtree-end (save-excursion (org-end-of-subtree t))))
-    (cond
-     ;; Has undone children → blocked by subtasks, skip
-     ((save-excursion
-        (forward-line 1)
-        (re-search-forward org-not-done-heading-regexp subtree-end t))
-      subtree-end)
-     ;; No ACTIVE ancestor (and not itself ACTIVE) → not on frontier, skip
-     ((not (jw/has-active-ancestor-p))
-      subtree-end)
-     ;; Actionable
-     (t nil))))
+  "Skip entries not under an ACTIVE ancestor.
+Ordering within a goal is handled by :ORDERED: t and
+`org-agenda-dim-blocked-tasks'."
+  (unless (jw/has-active-ancestor-p)
+    (save-excursion (org-end-of-subtree t))))
 
 ;; Silently revert org buffers before building agenda (external tools write files)
 (defun jw/revert-org-buffers ()
