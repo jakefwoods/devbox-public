@@ -26,6 +26,8 @@
         org-agenda-file-regexp "\\`\\([^.].*\\.org\\|[0-9]\\{8\\}\\(\\.gpg\\)?\\)\\'"
         ;; TODO keywords for goal tracking
         org-todo-keywords '((sequence "TODO" "ACTIVE" "BLOCKED" "|" "DONE" "CANCELLED"))
+        ;; Log CLOSED: [timestamp] when a task moves to a done state
+        org-log-done 'time
         ;; Custom agenda views
         org-agenda-custom-commands
         '(("A" "Active goals (scope overview)" todo "ACTIVE")

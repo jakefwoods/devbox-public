@@ -1,7 +1,12 @@
 ;;; programs/emacs/doom.d/modules/org/capture.el -*- lexical-binding: t; -*-
 ;;;
-;;; SPC X capture prefix (which-key), org-roam-dailies journal, inbox capture,
+;;; SPC X capture prefix (which-key), org-roam-dailies journal-as-inbox,
 ;;; bookmark→ref/external, refile, and slug-based ID generation.
+;;;
+;;; Design: today's journal page is the universal capture target.  TODOs,
+;;; notes, and freeform journal entries all land in the same daily file.
+;;; Completed tasks stay in-place with a CLOSED: timestamp (org-log-done).
+;;; The agenda surfaces open TODOs across all daily files.
 
 ;; ── slug-based ID generation ─────────────────────────────────────────
 ;;
@@ -34,7 +39,7 @@ Appends -2, -3, ... on collision."
       (setq n (1+ n)))
     candidate))
 
-;; ── org-roam-dailies ─────────────────────────────────────────────────
+;; ── org-roam-dailies (journal as inbox) ──────────────────────────────
 ;;
 ;; Daily journal pages as first-class roam nodes.
 ;; File: ~/org/journal/YYYY-MM-DD.org
@@ -42,18 +47,33 @@ Appends -2, -3, ... on collision."
 ;;
 ;; The :ID: is baked into the file+head template so that org-roam reads
 ;; it from the property drawer on file creation (no UUID ever generated).
+;;
+;; Three capture templates share the same daily file:
+;;   "j" = freeform journal entry (timestamped)
+;;   "t" = TODO task (surfaces in agenda)
+;;   "n" = plain note
 
 (after! org-roam
-  (setq org-roam-dailies-capture-templates
-        `(("j" "journal" entry
-           "* %<%H:%M> %?\n"
-           :target (file+head "%<%Y-%m-%d>.org"
-                              ,(concat ":PROPERTIES:\n"
-                                       ":ID: journal:%<%Y-%m-%d>\n"
-                                       ":END:\n"
-                                       "#+title: %<%Y-%m-%d %A>\n"))
-           :unnarrowed t
-           :empty-lines-before 1)))
+  (let ((daily-head (concat ":PROPERTIES:\n"
+                            ":ID: journal:%<%Y-%m-%d>\n"
+                            ":END:\n"
+                            "#+title: %<%Y-%m-%d %A>\n")))
+    (setq org-roam-dailies-capture-templates
+          `(("j" "journal" entry
+             "* %<%H:%M> %?\n"
+             :target (file+head "%<%Y-%m-%d>.org" ,daily-head)
+             :unnarrowed t
+             :empty-lines-before 1)
+            ("t" "TODO" entry
+             "* TODO %?\n"
+             :target (file+head "%<%Y-%m-%d>.org" ,daily-head)
+             :unnarrowed t
+             :empty-lines-before 1)
+            ("n" "note" entry
+             "* %?\n"
+             :target (file+head "%<%Y-%m-%d>.org" ,daily-head)
+             :unnarrowed t
+             :empty-lines-before 1))))
 
   ;; --- roam capture templates (for org-roam-node-find / org-roam-capture) ---
   ;;
@@ -94,46 +114,27 @@ Appends -2, -3, ... on collision."
      :info (list :ref url :slug slug)
      :templates org-roam-capture-templates)))
 
-;; ── org-capture: inbox ───────────────────────────────────────────────
-;;
-;; Quick captures that land in ~/org/inbox.org for later refiling.
-;; The inbox file is auto-created by org-capture on first use.
-;;
-;; "n" = Note — plain heading dumped under * Notes
-;; "t" = TODO — actionable item under * Tasks (surfaces in agenda)
-
-(after! org
-  (setq org-capture-templates
-        `(("n" "Note" entry
-           (file+headline ,(expand-file-name "inbox.org" org-directory) "Notes")
-           "* %?\n%i\n"
-           :empty-lines-after 1)
-          ("t" "TODO" entry
-           (file+headline ,(expand-file-name "inbox.org" org-directory) "Tasks")
-           "* TODO %?\n%i\n"
-           :empty-lines-after 1))))
-
 ;; ── capture prefix map (SPC X) ───────────────────────────────────────
 ;;
 ;; Replaces Doom's default `SPC X` (org-capture) with a prefix map.
 ;; which-key shows descriptions automatically when SPC X is held.
-;;   j → org-roam-dailies (journal node)
-;;   n → org-capture (inbox note)
-;;   t → org-capture (inbox TODO)
-;;   b → org-roam-capture (bookmark → ref/external/)
+;;   j → journal entry (freeform, timestamped)
+;;   t → TODO task (into today's journal)
+;;   n → note (into today's journal)
+;;   b → bookmark (→ ref/external/)
 
 (map! :leader
       (:prefix-map ("X" . "capture")
        :desc "Journal entry"  "j" (cmd! (org-roam-dailies-capture-today nil "j"))
-       :desc "Note → inbox"   "n" (cmd! (org-capture nil "n"))
-       :desc "TODO → inbox"   "t" (cmd! (org-capture nil "t"))
+       :desc "TODO → journal" "t" (cmd! (org-roam-dailies-capture-today nil "t"))
+       :desc "Note → journal" "n" (cmd! (org-roam-dailies-capture-today nil "n"))
        :desc "Bookmark → ref" "b" #'jw/org-roam-capture-bookmark))
 
 ;; ── org-refile ───────────────────────────────────────────────────────
 ;;
 ;; Refile = "move a heading from one file/location to another".
-;; Use case: capture into inbox, then later SPC m r to refile the
-;; item into the right place (a goal, a ref, etc).
+;; Use case: move a task from the journal into a goal tree when it
+;; needs to live somewhere more permanent.
 ;;
 ;; Targets: any heading up to depth 3 in any agenda file.
 ;; Completion shows full outline path (file/h1/h2/h3) for precision.
