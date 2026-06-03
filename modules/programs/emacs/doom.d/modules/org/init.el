@@ -94,6 +94,10 @@ Ordering within a goal is handled by :ORDERED: t and
         org-journal-file-format "%Y%m%d.org"
         org-journal-carryover-items ""))
 
+;; ── org-roam outgoing links section ──────────────────────────────────
+
+(load! "org-roam-links-section")
+
 ;; ── org-wiki ─────────────────────────────────────────────────────────
 
 (load! "org-wiki-publish")
