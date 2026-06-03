@@ -210,13 +210,9 @@ All BLOCKED items under any ACTIVE ancestor are shown."
         org-roam-dailies-directory "journal/"
         org-roam-completion-everywhere t))
 
-;; ── org-journal ──────────────────────────────────────────────────────
+;; ── org-capture & refile ──────────────────────────────────────────────
 
-(after! org-journal
-  (setq org-journal-dir "~/org/journal/"
-        org-journal-file-type 'daily
-        org-journal-file-format "%Y%m%d.org"
-        org-journal-carryover-items ""))
+(load! "capture")
 
 ;; ── org-roam outgoing links section ──────────────────────────────────
 
