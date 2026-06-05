@@ -208,6 +208,22 @@ ${followsDecls}
             content = mutableFlakeContentFor name overrides;
           }) cfg.inputs);
 
+        # Given a target prefix (relative to $HOME) and a source directory,
+        # returns an attrset of home.file entries — one per child of srcDir —
+        # each linked via `link` (mutable when enabled, store path otherwise).
+        # This manages individual children without claiming the parent directory,
+        # so unmanaged siblings (e.g. externally-managed symlinks) are preserved.
+        #
+        # Usage:
+        #   home.file = config.lib.mutableInputs.linkChildren ".agents/skills" ./skills;
+        #
+        linkChildren = destPrefix: srcDir:
+          lib.mapAttrs'
+            (child: _: lib.nameValuePair
+              "${destPrefix}/${child}"
+              { source = link (srcDir + "/${child}"); })
+            (builtins.readDir srcDir);
+
         # The link function: given a nix path, determines which registered
         # input it belongs to and returns either a mutable symlink or the
         # store path.
@@ -326,7 +342,7 @@ ${followsDecls}
 
           # Expose the link function unconditionally so aspects can call it
           # regardless of whether mutableInputs is enabled on the current host.
-          lib.mutableInputs = { inherit link; };
+          lib.mutableInputs = { inherit link linkChildren; };
 
           # Clone/sync repos + generate .mutable/flake.nix on activation.
           home.activation.mutableInputsSync = lib.mkIf cfg.enable
@@ -366,12 +382,22 @@ ${followsDecls}
                         ${git} -C ${lib.escapeShellArg mutableDir} init --quiet 2>/dev/null
                       fi
 
+                      # Gitignore flake.lock so Nix's source-tree filter excludes it
+                      # from evaluation. This means Nix never reuses a stale lock —
+                      # every eval resolves ?ref=main to current HEAD. Nix still
+                      # writes a lock to disk as a side effect, but it's harmless
+                      # (ignored on next read, invisible to git).
+                      if ! grep -qxF 'flake.lock' ${lib.escapeShellArg "${mutableDir}/.gitignore"} 2>/dev/null; then
+                        echo 'flake.lock' >> ${lib.escapeShellArg "${mutableDir}/.gitignore"}
+                      fi
+
                       cat > ${lib.escapeShellArg "${mutableDir}/flake.nix"} << 'MUTABLE_FLAKE_EOF'
 ${content}
 MUTABLE_FLAKE_EOF
 
-                      ${git} -C ${lib.escapeShellArg mutableDir} add flake.nix
-                      ${git} -C ${lib.escapeShellArg mutableDir} add flake.lock 2>/dev/null || true
+                      ${git} -C ${lib.escapeShellArg mutableDir} add flake.nix .gitignore
+                      # Untrack flake.lock if previously committed (one-time migration).
+                      ${git} -C ${lib.escapeShellArg mutableDir} rm --cached flake.lock 2>/dev/null || true
                       ${git} -C ${lib.escapeShellArg mutableDir} diff --cached --quiet 2>/dev/null \
                         || ${git} -C ${lib.escapeShellArg mutableDir} commit -m "mutableInputs: update overrides" --quiet 2>/dev/null || true
                     ''
