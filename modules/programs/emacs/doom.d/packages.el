@@ -45,6 +45,10 @@
 ;; org-roam-ui: browser-based graph visualization for org-roam
 (package! org-roam-ui)
 
+;; org-ql: query language for org-mode (agenda-like queries, date ranges, etc.)
+;; Used by the LLM agent skill for programmatic journal/org queries via emacsclient.
+(package! org-ql)
+
 ;; Doom's packages are pinned to a specific commit and updated from release to
 ;; release. The `unpin!' macro allows you to unpin single packages...
 ;(unpin! pinned-package)

@@ -1,12 +1,15 @@
 ;;; programs/emacs/doom.d/modules/org/capture.el -*- lexical-binding: t; -*-
 ;;;
-;;; SPC X capture prefix (which-key), org-roam-dailies journal-as-inbox,
+;;; SPC X capture prefix (which-key), flat single-file journal capture,
 ;;; bookmark→ref/external, refile, and slug-based ID generation.
 ;;;
-;;; Design: today's journal page is the universal capture target.  TODOs,
-;;; notes, and freeform journal entries all land in the same daily file.
-;;; Completed tasks stay in-place with a CLOSED: timestamp (org-log-done).
-;;; The agenda surfaces open TODOs across all daily files.
+;;; Design: ~/org/journal.org is one flat file — one top-level heading per
+;;; day (newest-first), entries as level-2 subheadings.  Each day heading
+;;; carries :ID: journal:YYYY-MM-DD (org-roam heading node).  Capture files
+;;; new entries under today's heading via a custom locator; if today doesn't
+;;; exist yet, it's created at the top of the file.  Completed tasks stay
+;;; in-place with a CLOSED: timestamp (org-log-done).  The agenda surfaces
+;;; open TODOs across journal.org + all other org files.
 
 ;; ── slug-based ID generation ─────────────────────────────────────────
 ;;
@@ -39,42 +42,70 @@ Appends -2, -3, ... on collision."
       (setq n (1+ n)))
     candidate))
 
-;; ── org-roam-dailies (journal as inbox) ──────────────────────────────
+;; ── journal capture (flat single-file, newest-first) ─────────────────
 ;;
-;; Daily journal pages as first-class roam nodes.
-;; File: ~/org/journal/YYYY-MM-DD.org
-;; ID: journal:YYYY-MM-DD (deterministic — one per day, no collision risk)
+;; ~/org/journal.org structure:
+;;   * 2026-06-05 Friday        ← newest day at top
+;;   :PROPERTIES:
+;;   :ID: journal:2026-06-05
+;;   :END:
+;;   ** TODO Some task           ← entries as level-2
+;;   ** 14:37 Something happened
+;;   * 2026-06-04 Thursday      ← older days below
+;;   ...
 ;;
-;; The :ID: is baked into the file+head template so that org-roam reads
-;; it from the property drawer on file creation (no UUID ever generated).
-;;
-;; Three capture templates share the same daily file:
-;;   "j" = freeform journal entry (timestamped)
-;;   "t" = TODO task (surfaces in agenda)
-;;   "n" = plain note
+;; Capture locator: find today's * YYYY-MM-DD heading by :ID:; if absent,
+;; create it at the top (after #+title preamble).  :prepend puts newest
+;; entries first within the day.
+
+(defvar jw/journal-file (expand-file-name "journal.org" org-directory)
+  "Path to the single flat journal file.")
+
+(defun jw/journal-today-location ()
+  "Position point in `jw/journal-file' under today's day heading.
+Creates the heading at the top of the file (newest-first) with
+:ID: journal:YYYY-MM-DD if it doesn't exist yet."
+  (let* ((today (format-time-string "%Y-%m-%d"))
+         (id (concat "journal:" today))
+         (title (format-time-string "%Y-%m-%d %A")))
+    (set-buffer (org-capture-target-buffer jw/journal-file))
+    (widen)
+    ;; Try to find today's heading by its :ID: property.
+    (goto-char (point-min))
+    (unless (org-find-property "ID" id)
+      ;; Today doesn't exist yet — insert at the top, after any preamble
+      ;; (#+title, blank lines before first heading).
+      (goto-char (point-min))
+      (if (re-search-forward "^\\*" nil t)
+          (goto-char (match-beginning 0))
+        (goto-char (point-max))
+        (unless (bolp) (insert "\n")))
+      (insert (format "* %s\n:PROPERTIES:\n:ID: %s\n:END:\n" title id))
+      ;; Register the new ID so links resolve immediately.
+      (org-id-add-location id (buffer-file-name)))
+    ;; Now position inside today's heading for entry insertion.
+    (goto-char (point-min))
+    (org-find-property "ID" id)
+    (goto-char (org-find-property "ID" id))
+    (org-end-of-meta-data t)))
+
+(after! org
+  (setq org-capture-templates
+        (append org-capture-templates
+                `(("j" "Journal entry" entry
+                   (function jw/journal-today-location)
+                   "* %<%H:%M> %?\n"
+                   :prepend t :empty-lines-before 1)
+                  ("t" "TODO → journal" entry
+                   (function jw/journal-today-location)
+                   "* TODO %?\n"
+                   :prepend t :empty-lines-before 1)
+                  ("n" "Note → journal" entry
+                   (function jw/journal-today-location)
+                   "* %?\n"
+                   :prepend t :empty-lines-before 1)))))
 
 (after! org-roam
-  (let ((daily-head (concat ":PROPERTIES:\n"
-                            ":ID: journal:%<%Y-%m-%d>\n"
-                            ":END:\n"
-                            "#+title: %<%Y-%m-%d %A>\n")))
-    (setq org-roam-dailies-capture-templates
-          `(("j" "journal" entry
-             "* %<%H:%M> %?\n"
-             :target (file+head "%<%Y-%m-%d>.org" ,daily-head)
-             :unnarrowed t
-             :empty-lines-before 1)
-            ("t" "TODO" entry
-             "* TODO %?\n"
-             :target (file+head "%<%Y-%m-%d>.org" ,daily-head)
-             :unnarrowed t
-             :empty-lines-before 1)
-            ("n" "note" entry
-             "* %?\n"
-             :target (file+head "%<%Y-%m-%d>.org" ,daily-head)
-             :unnarrowed t
-             :empty-lines-before 1))))
-
   ;; --- roam capture templates (for org-roam-node-find / org-roam-capture) ---
   ;;
   ;; "d" = default (SPC n n style, creating a generic roam note).
@@ -125,9 +156,9 @@ Appends -2, -3, ... on collision."
 
 (map! :leader
       (:prefix-map ("X" . "capture")
-       :desc "Journal entry"  "j" (cmd! (org-roam-dailies-capture-today nil "j"))
-       :desc "TODO → journal" "t" (cmd! (org-roam-dailies-capture-today nil "t"))
-       :desc "Note → journal" "n" (cmd! (org-roam-dailies-capture-today nil "n"))
+       :desc "Journal entry"  "j" (cmd! (org-capture nil "j"))
+       :desc "TODO → journal" "t" (cmd! (org-capture nil "t"))
+       :desc "Note → journal" "n" (cmd! (org-capture nil "n"))
        :desc "Bookmark → ref" "b" #'jw/org-roam-capture-bookmark))
 
 ;; ── org-refile ───────────────────────────────────────────────────────

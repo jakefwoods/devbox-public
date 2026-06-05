@@ -209,7 +209,6 @@ All BLOCKED items under any ACTIVE ancestor are shown."
 
 (after! org-roam
   (setq org-roam-directory "~/org/"
-        org-roam-dailies-directory "journal/"
         org-roam-completion-everywhere t))
 
 ;; ── org-capture & refile ──────────────────────────────────────────────
@@ -223,3 +222,22 @@ All BLOCKED items under any ACTIVE ancestor are shown."
 ;; ── org-wiki ─────────────────────────────────────────────────────────
 
 (load! "org-wiki-publish")
+
+;; ── journal navigation ────────────────────────────────────────────────
+
+(defun jw/journal-goto-today ()
+  "Open ~/org/journal.org and jump to today's day heading.
+Creates the heading (via capture locator logic) if it doesn't exist."
+  (interactive)
+  (find-file jw/journal-file)
+  (widen)
+  (goto-char (point-min))
+  (let* ((today (format-time-string "%Y-%m-%d"))
+         (id (concat "journal:" today))
+         (pos (org-find-property "ID" id)))
+    (if pos
+        (progn (goto-char pos) (org-reveal t) (org-show-entry))
+      ;; Today doesn't exist yet — create via capture then abort back here.
+      (org-capture nil "j"))))
+
+(map! :leader :desc "Journal (today)" "o j" #'jw/journal-goto-today)
