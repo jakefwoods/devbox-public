@@ -11,9 +11,7 @@
 ;; ── org-agenda ───────────────────────────────────────────────────────
 
 (after! org
-  (setq org-agenda-files (directory-files-recursively "~/org/" "\\.org$")
-        ;; Today only — no rolling week
-        org-agenda-span 'day
+  (setq org-agenda-span 'day
         org-agenda-start-day nil
         org-agenda-todo-ignore-scheduled 'future
         org-agenda-skip-deadline-prewarning-if-scheduled 'pre-scheduled
@@ -41,7 +39,31 @@
                    (org-agenda-skip-function 'jw/skip-non-blocked)))))
           ("t" "Actionable TODOs" todo "TODO|ACTIVE"
            ((org-agenda-skip-function 'jw/skip-non-actionable)))
-          ("T" "All TODOs (full tree)" todo "TODO|ACTIVE|BLOCKED"))))
+          ("T" "All TODOs (full tree)" todo "TODO|ACTIVE|BLOCKED")))
+
+  ;; ── dynamic org-agenda-files ─────────────────────────────────────────
+
+  (defun jw/org-agenda-files-default ()
+    "Recursively find all org files under `~/org/'."
+    (let ((dir (expand-file-name "~/org/")))
+      (when (file-directory-p dir)
+        (directory-files-recursively dir "\\.org$"))))
+
+  (defvar jw/org-agenda-files-function #'jw/org-agenda-files-default
+    "Function returning the initial list of agenda files.")
+
+  (defvar jw/org-agenda-files-functions nil
+    "Functions refining the discovered agenda file list.")
+
+  (defun jw/refresh-org-agenda-files ()
+    "Recompute `org-agenda-files' from disk on each agenda build."
+    (let ((files (funcall jw/org-agenda-files-function)))
+      (dolist (fn jw/org-agenda-files-functions)
+        (setq files (funcall fn files)))
+      (setq org-agenda-files files)))
+
+  (add-hook 'doom-after-init-hook #'jw/refresh-org-agenda-files)
+  (add-hook 'org-agenda-mode-hook #'jw/refresh-org-agenda-files))
 
 ;; ── actionable goals ─────────────────────────────────────────────────
 ;;
