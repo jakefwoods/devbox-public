@@ -105,7 +105,8 @@ If the current heading is ACTIVE, returns its own position."
 
 (defun jw/heading-has-incomplete-children-p ()
   "Non-nil if heading at point has any child with a non-done TODO state.
-Sub-ACTIVE children with incomplete children are ignored (own scope)."
+Sub-ACTIVE children with incomplete children are ignored (own scope).
+Plain headings (no TODO keyword) are transparent — recurse into them."
   (let ((has-incomplete nil))
     (save-excursion
       (when (org-goto-first-child)
@@ -120,7 +121,12 @@ Sub-ACTIVE children with incomplete children are ignored (own scope)."
                ;; Any non-done TODO state = incomplete child
                ((and state (not (member state '("DONE" "CANCELLED"))))
                 (setq has-incomplete t)
-                (throw 'done t))))
+                (throw 'done t))
+               ;; Plain heading — look through it
+               ((null state)
+                (when (jw/heading-has-incomplete-children-p)
+                  (setq has-incomplete t)
+                  (throw 'done t)))))
             (unless (org-get-next-sibling)
               (throw 'done nil))))))
     has-incomplete))
@@ -149,8 +155,15 @@ actionable leaf position, `blocked', or nil."
           (let ((state (org-get-todo-state)))
             (cond
              ;; Done/cancelled — skip
-             ((member state '("DONE" "CANCELLED" nil))
+             ((member state '("DONE" "CANCELLED"))
               nil)
+             ;; Plain heading (no TODO keyword) — transparent, descend
+             ((null state)
+              (let ((result (jw/--walk-children-for-actionable)))
+                (cond
+                 ((eq result 'blocked) (throw 'result 'blocked))
+                 (result (throw 'result result))
+                 (t nil))))
              ;; Blocked — scope is stuck
              ((string= state "BLOCKED")
               (throw 'result 'blocked))
