@@ -23,7 +23,7 @@
         ;; Include org-journal formatted files in the agenda
         org-agenda-file-regexp "\\`\\([^.].*\\.org\\|[0-9]\\{8\\}\\(\\.gpg\\)?\\)\\'"
         ;; TODO keywords for goal tracking
-        org-todo-keywords '((sequence "TODO" "ACTIVE" "BLOCKED" "|" "DONE" "CANCELLED"))
+        org-todo-keywords '((sequence "TODO" "ACTIVE" "PAUSED" "BLOCKED" "|" "DONE" "CANCELLED"))
         ;; Log CLOSED: [timestamp] when a task moves to a done state
         org-log-done 'time
         ;; Custom agenda views
@@ -36,10 +36,13 @@
                    (org-agenda-skip-function 'jw/skip-non-actionable)))
             (todo "BLOCKED"
                   ((org-agenda-overriding-header "Waiting on...")
-                   (org-agenda-skip-function 'jw/skip-non-blocked)))))
+                   (org-agenda-skip-function 'jw/skip-non-blocked)))
+            (todo "PAUSED"
+                  ((org-agenda-overriding-header "Paused (backlog)")
+                   (org-agenda-skip-function 'jw/skip-non-paused-scope)))))
           ("t" "Actionable TODOs" todo "TODO|ACTIVE"
            ((org-agenda-skip-function 'jw/skip-non-actionable)))
-          ("T" "All TODOs (full tree)" todo "TODO|ACTIVE|BLOCKED")))
+          ("T" "All TODOs (full tree)" todo "TODO|ACTIVE|PAUSED|BLOCKED")))
 
   ;; ── dynamic org-agenda-files ─────────────────────────────────────────
 
@@ -219,6 +222,14 @@ All BLOCKED items under any ACTIVE ancestor are shown."
     (widen)
     (unless (and (string= (org-get-todo-state) "BLOCKED")
                  (jw/has-active-ancestor-p))
+      (save-excursion (org-end-of-subtree t)))))
+
+(defun jw/skip-non-paused-scope ()
+  "Show only PAUSED headings.  Used in the backlog agenda block to
+surface paused projects without showing their child tasks."
+  (save-restriction
+    (widen)
+    (unless (string= (org-get-todo-state) "PAUSED")
       (save-excursion (org-end-of-subtree t)))))
 
 ;; Silently revert org buffers before building agenda (external tools write files)
