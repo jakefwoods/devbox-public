@@ -17,6 +17,11 @@ set -euo pipefail
 GIT="@git@"
 NIX="@nix@"
 
+# `nix flake clone` shells out to `git` from PATH, but the home-manager
+# activation environment has a minimal PATH without git. Put our pinned git
+# on PATH so nix's internal invocations resolve.
+export PATH="$(dirname "$GIT"):$PATH"
+
 dest="${1:?Usage: sync.sh <dest> <flake-ref> [<rev>]}"
 flake_ref="${2:?Usage: sync.sh <dest> <flake-ref> [<rev>]}"
 rev="${3:-}"
