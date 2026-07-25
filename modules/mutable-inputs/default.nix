@@ -95,9 +95,13 @@
           let p = cfg.inputs.${name}.path;
           in if p != null then p else "${cfg.root}/${name}";
 
-        # The top-level flake (inputs.self from flake-parts module args).
-        # Used to read flake.lock for clone URLs and pinned revs.
-        topFlake = inputs.self;
+        # The root flake whose flake.lock we read for clone URLs and pinned
+        # revs. This must be the *consuming* flake, not inputs.self: when these
+        # aspects are pulled in as another flake's output (e.g. `flake.aspects =
+        # inputs.devbox-public.aspects`), inputs.self resolves to the flake that
+        # *defines* the aspect, whose lock knows nothing about the consumer's
+        # inputs. Hosts pass their own `self` via local.mutableInputs.rootFlake.
+        topFlake = cfg.rootFlake;
 
         # Read the top-level flake's lock file to derive clone URLs and pinned revs.
         lockPath = topFlake.outPath + "/flake.lock";
@@ -273,6 +277,21 @@ ${followsDecls}
               Required when enable = true.
             '';
             example = "/home/user/work";
+          };
+
+          rootFlake = lib.mkOption {
+            type = lib.types.raw;
+            default = inputs.self;
+            description = ''
+              The top-level (consuming) flake whose flake.lock is read to derive
+              clone URLs and pinned revs. Pass your own `self`.
+
+              The default (inputs.self) is only correct when these aspects live
+              in the same flake you build. When they are consumed as another
+              flake's output, inputs.self is the defining flake and its lock has
+              no entry for your inputs, so clone URL derivation silently fails.
+            '';
+            example = lib.literalExpression "self";
           };
 
           inputs = lib.mkOption {
