@@ -1,0 +1,27 @@
+[
+  {
+    "context": "(VimControl && !menu)",
+    "bindings": {
+      // Disable the default action vim::WrappingRight
+      // allows vim + which_key to work
+      "space": null,
+    },
+  },
+  {
+    "context": "vim_mode == normal && !menu",
+    "bindings": {
+      "space space": "command_palette::Toggle",
+
+      "space o p": "project_panel::Toggle",
+
+      "space f f": "file_finder::Toggle",
+      "space f s": "workspace::Save",
+
+      "space b b": "file_finder::Toggle",
+      "space b d": "pane::CloseActiveItem",
+      "space b D": "pane::CloseActiveItem",
+
+      "space /": "workspace::NewSearch",
+    },
+  },
+]
