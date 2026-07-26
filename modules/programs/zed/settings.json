@@ -4,6 +4,9 @@
       "type": "registry",
     },
   },
+  "auto_install_extensions": {
+    "nix": true,
+  },
   "telemetry": {
     "diagnostics": false,
     "metrics": false,
@@ -20,4 +23,18 @@
     "dark": "One Dark",
   },
   "close_panel_on_toggle": true,
+  "languages": {
+    "Nix": {
+      "language_servers": ["nixd", "!nil"],
+    },
+  },
+  "lsp": {
+    "nixd": {
+      "settings": {
+        "diagnostic": {
+          "suppress": ["sema-unused-def-lambda-noarg-formal"],
+        },
+      },
+    },
+  },
 }

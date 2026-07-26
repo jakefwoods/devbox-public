@@ -54,6 +54,7 @@
       "space w k": "workspace::ActivatePaneUp",
       "space w h": "workspace::ActivatePaneLeft",
       "space w l": "workspace::ActivatePaneRight",
+      "space w d": "pane::CloseAllItems",
       "space w /": "pane::SplitVertical",
       "space w s": "pane::SplitHorizontal",
     },
