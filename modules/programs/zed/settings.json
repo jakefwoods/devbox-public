@@ -12,11 +12,12 @@
   "vim_mode": true,
   "which_key": {
     "enabled": true,
-    "delay_ms": 50,
+    "delay_ms": 250,
   },
   "theme": {
     "mode": "system",
     "light": "One Light",
     "dark": "One Dark",
   },
+  "close_panel_on_toggle": true,
 }

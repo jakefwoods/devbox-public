@@ -1,27 +1,69 @@
 [
   {
-    "context": "(VimControl && !menu)",
+    "unbind": {
+      "ctrl-q": "vim::ToggleVisualBlock",
+      "cmd-shift-o": "outline::Toggle",
+      "cmd-?": "agent::ToggleFocus",
+      "cmd-ð": "editor::ToggleLineNumbers",
+      "cmd-'": ["editor::ToggleComments", { "advance_downwards": false }],
+      "cmd-alt-l": "buffer_search::Deploy",
+      "ctrl-shift-up": "editor::SelectToStartOfParagraph",
+      "ctrl-shift-down": "editor::SelectToEndOfParagraph",
+      "ctrl-shift-left": "editor::SelectSmallerSyntaxNode",
+      "ctrl-shift-right": "editor::SelectLargerSyntaxNode",
+    },
+  },
+  {
+    "context": "Workspace",
+    "bindings": {
+      "ctrl-alt-left": "workspace::ActivatePaneLeft",
+      "ctrl-alt-right": "workspace::ActivatePaneRight",
+      "ctrl-alt-up": "workspace::ActivatePaneUp",
+      "ctrl-alt-down": "workspace::ActivatePaneDown",
+      "ctrl-space w h": "workspace::ActivatePaneLeft",
+      "ctrl-space w l": "workspace::ActivatePaneRight",
+      "ctrl-space w k": "workspace::ActivatePaneUp",
+      "ctrl-space w j": "workspace::ActivatePaneDown",
+    },
+  },
+  {
+    "context": "(Workspace && !Editor && !Terminal) || (Editor && VimControl)",
     "bindings": {
       // Disable the default action vim::WrappingRight
       // allows vim + which_key to work
       "space": null,
-    },
-  },
-  {
-    "context": "vim_mode == normal && !menu",
-    "bindings": {
-      "space space": "command_palette::Toggle",
 
-      "space o p": "project_panel::Toggle",
+      "space /": "workspace::NewSearch",
+      "space space": "command_palette::Toggle",
+      "space tab": "vim::GoToTab",
+      "space shift+tab": "vim::GoToPreviousTab",
+
+      "space b b": "tab_switcher::Toggle",
+      "space b d": "pane::CloseActiveItem",
+      "space b D": "pane::CloseActiveItem",
 
       "space f f": "file_finder::Toggle",
       "space f s": "workspace::Save",
 
-      "space b b": "file_finder::Toggle",
-      "space b d": "pane::CloseActiveItem",
-      "space b D": "pane::CloseActiveItem",
+      "space o p": "project_panel::Toggle",
+      "space o t": "terminal_panel::Toggle",
 
-      "space /": "workspace::NewSearch",
+      "space p f": "file_finder::Toggle",
+
+      "space w j": "workspace::ActivatePaneDown",
+      "space w k": "workspace::ActivatePaneUp",
+      "space w h": "workspace::ActivatePaneLeft",
+      "space w l": "workspace::ActivatePaneRight",
+      "space w /": "pane::SplitVertical",
+      "space w s": "pane::SplitHorizontal",
+    },
+  },
+  {
+    "context": "TabSwitcher > Picker",
+    "bindings": {
+      "j": "menu::SelectNext",
+      "k": "menu::SelectPrevious",
+      "f": "menu::Confirm",
     },
   },
 ]
