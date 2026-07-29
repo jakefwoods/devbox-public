@@ -21,13 +21,23 @@
             ui.default-command = "log";
 
             aliases.gpt = ["git" "push" "--tracked"];
-            aliases.reb = ["rebase" "-s" "all:wiproot" "-d" "trunk()"];
+            aliases.reb = ["rebase" "-s" "all:reb-command-targets" "-d" "trunk()"];
             aliases.tug = ["bookmark" "move" "--from" "heads(::@ & bookmarks())" "--to" "@"];
 
-            revsets.log = "@ | ancestors(wip, 2) | trunk()";
+            # Escape hatch: mutable work of mine that `wip` no longer surfaces because it has
+            # no bookmark and isn't under @. Without this, such stacks vanish silently.
+            aliases.lost = ["log" "-r" "mine() & mutable() & ~::bookmarks() & ~::@"];
 
-            revset-aliases.wip = "trunk()..(visible_heads() & mine() & mutable())";
-            revset-aliases.wiproot = "roots(trunk()..(visible_heads() & mine() & mutable()))";
+            revsets.log = "present(@) | ancestors(wip, 2) | trunk()";
+
+            revset-aliases.tracking = "bookmarks() | tracked_remote_bookmarks()";
+            revset-aliases.here = "heads(@::) | working_copies()";
+            revset-aliases.attention = "mutable() & (conflicts() | divergent())";
+            revset-aliases.wip = "trunk()..((tracking | here | attention) & mutable())";
+
+            # roots of branches that should be auto-rebased
+            revset-aliases.reb-command-targets = "roots(trunk()..(visible_heads() & mine() & mutable()))";
+
             revset-aliases."bookmark_base(rev)" = "latest((::rev ~ rev) & bookmarks())";
           };
         };
