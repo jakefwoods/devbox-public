@@ -22,6 +22,13 @@ NIX="@nix@"
 # on PATH so nix's internal invocations resolve.
 export PATH="$(dirname "$GIT"):$PATH"
 
+# The home-manager activation environment has no git identity configured, so
+# `git commit` and `git rebase` below would fail with "Author identity unknown".
+# The temp commit and rebase are ephemeral (unwound via reset), so the identity
+# is never persisted — a placeholder is sufficient.
+export GIT_AUTHOR_NAME="mutableInputs" GIT_AUTHOR_EMAIL="mutableInputs@localhost"
+export GIT_COMMITTER_NAME="mutableInputs" GIT_COMMITTER_EMAIL="mutableInputs@localhost"
+
 dest="${1:?Usage: sync.sh <dest> <flake-ref> [<rev>]}"
 flake_ref="${2:?Usage: sync.sh <dest> <flake-ref> [<rev>]}"
 rev="${3:-}"
