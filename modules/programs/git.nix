@@ -22,7 +22,7 @@
 
             aliases.gpt = ["git" "push" "--tracked"];
             aliases.reb = ["rebase" "-s" "all:reb-command-targets" "-d" "trunk()"];
-            aliases.tug = ["bookmark" "move" "--from" "heads(::@ & bookmarks())" "--to" "@"];
+            aliases.tug = ["bookmark" "move" "--from" "heads(::@ & bookmarks())" "--to" "heads(::@ ~ (empty() & ~merges()))"];
 
             # Escape hatch: mutable work of mine that `wip` no longer surfaces because it has
             # no bookmark and isn't under @. Without this, such stacks vanish silently.
