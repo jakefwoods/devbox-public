@@ -112,6 +112,11 @@
 (load! "modules/scala")
 (load! "modules/csharp")
 
+
+;;;  ensure envrc is loaded before lsp
+(after! (:and envrc lsp-mode)
+        (advice-add 'lsp--start-workspace :around #'envrc-propagate-environment))
+
 ;; ── doom-local: machine-specific config overlay ──────────────────────
 ;; Load all .el files from ~/.config/doom-local/ (provided by the private
 ;; repo via mutableInputs). This is where machine- or org-specific config

@@ -7,11 +7,13 @@
   },
   "auto_install_extensions": {
     "nix": true,
+    "zig": true,
   },
   "telemetry": {
     "diagnostics": false,
     "metrics": false,
   },
+  "load_direnv": "shell_hook",
   "base_keymap": "JetBrains",
   "vim_mode": true,
   "which_key": {

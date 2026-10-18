@@ -48,6 +48,7 @@
       "space o p": "project_panel::Toggle",
       "space o t": "terminal_panel::Toggle",
 
+      "space p p": "projects::OpenRecent",
       "space p f": "file_finder::Toggle",
 
       "space w j": "workspace::ActivatePaneDown",
