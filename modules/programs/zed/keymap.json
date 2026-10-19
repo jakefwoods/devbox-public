@@ -42,8 +42,13 @@
       "space b d": "pane::CloseActiveItem",
       "space b D": "pane::CloseActiveItem",
 
+      "space c a": "editor::ToggleCodeActions",
+      "space c r": "editor::Rename",
+
       "space f f": "file_finder::Toggle",
       "space f s": "workspace::Save",
+      "space f k": "zed::OpenKeymapFile",
+      "space f c": "zed::OpenSettingsFile",
 
       "space o p": "project_panel::Toggle",
       "space o t": "terminal_panel::Toggle",

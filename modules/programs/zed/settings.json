@@ -6,6 +6,8 @@
     },
   },
   "auto_install_extensions": {
+    "csharp": true,
+    "deno": true,
     "nix": true,
     "zig": true,
   },
@@ -27,6 +29,9 @@
   },
   "close_panel_on_toggle": true,
   "languages": {
+    "CSharp": {
+      "language_servers": ["roslyn", "!csharp-lp"],
+    },
     "Nix": {
       "language_servers": ["nixd", "!nil"],
     },
