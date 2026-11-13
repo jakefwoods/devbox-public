@@ -19,7 +19,7 @@
 
         # Scala
         pkgs.sbt
-        self.packages.${pkgs.system}.scalastyle
+        self.packages.${pkgs.stdenv.hostPlatform.system}.scalastyle
         pkgs.scalafmt
         pkgs.unstable.metals
 

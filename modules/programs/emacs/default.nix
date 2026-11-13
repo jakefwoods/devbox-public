@@ -32,7 +32,7 @@
             # native feel (smooth scrolling, native fullscreen, retina text).
             # On Linux we stay on plain pkgs.emacs.
             package =
-              if pkgs.stdenv.isDarwin
+              if pkgs.stdenv.hostPlatform.isDarwin
               then pkgs.emacs-macport
               else pkgs.emacs;
             extraPackages = epkgs: with epkgs; [
@@ -42,7 +42,7 @@
           };
 
           # Linux: systemd user service. No-op (and silently broken) on Darwin.
-          services.emacs = lib.mkIf pkgs.stdenv.isLinux {
+          services.emacs = lib.mkIf pkgs.stdenv.hostPlatform.isLinux {
             enable = true;
             client.enable = true;
             startWithUserSession = "graphical";
@@ -50,7 +50,7 @@
 
           # macOS: launchd agent. Use --fg-daemon so launchd can supervise the
           # process correctly (it watches the foreground PID).
-          launchd.agents.emacs = lib.mkIf pkgs.stdenv.isDarwin {
+          launchd.agents.emacs = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
             enable = true;
             config = {
               ProgramArguments = [

@@ -36,7 +36,7 @@
             source-sans-pro
             source-serif-pro
             ubuntu-classic
-            ttf_bitstream_vera
+            ttf-bitstream-vera
             emacs-all-the-icons-fonts
           ] ++ (builtins.filter lib.attrsets.isDerivation (builtins.attrValues pkgs.nerd-fonts));
         };

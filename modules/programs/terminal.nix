@@ -64,7 +64,7 @@
 
         programs.ghostty = {
           enable = true;
-          package = if pkgs.stdenv.isDarwin then pkgs.ghostty-bin else pkgs.ghostty;
+          package = if pkgs.stdenv.hostPlatform.isDarwin then pkgs.ghostty-bin else pkgs.ghostty;
           enableBashIntegration = true;
           settings = {
             theme = "Abernathy";
@@ -87,7 +87,7 @@
           pkgs.lsof
           pkgs.tokei
           pkgs.unzip
-        ] ++ lib.optionals pkgs.stdenv.isLinux [
+        ] ++ lib.optionals pkgs.stdenv.hostPlatform.isLinux [
           # s-tui is marked broken on Darwin in nixpkgs.
           pkgs.s-tui
         ];

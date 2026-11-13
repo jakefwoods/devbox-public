@@ -9,7 +9,7 @@
         # Fancy startup animations
         boot.plymouth.enable = false;
         boot.plymouth.theme = "green_blocks";
-        boot.plymouth.themePackages = [ self.packages.${pkgs.system}.plymouth-adi1090x ];
+        boot.plymouth.themePackages = [ self.packages.${pkgs.stdenv.hostPlatform.system}.plymouth-adi1090x ];
 
         boot.initrd.systemd.enable = true;
 

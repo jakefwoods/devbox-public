@@ -14,12 +14,12 @@
             # our mutableInputs module to manage settings anyway.
             home.packages =
               [ ]
-              ++ (pkgs.lib.optionals pkgs.stdenv.isLinux [
+              ++ (pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [
                 (pkgs.zed-editor.fhsWithPackages (pkgs: [
                   pkgs.nixd
                 ]))
               ])
-              ++ (pkgs.lib.optionals pkgs.stdenv.isDarwin [
+              ++ (pkgs.lib.optionals pkgs.stdenv.hostPlatform.isDarwin [
                 # no fhs wrap on darwin
                 pkgs.zed-editor
                 pkgs.nixd
