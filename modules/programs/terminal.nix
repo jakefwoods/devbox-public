@@ -74,7 +74,6 @@
 
         # Terminal utilities
         home.packages = [
-          pkgs.awscli
           pkgs.bottom
           pkgs.bat
           pkgs.binutils
