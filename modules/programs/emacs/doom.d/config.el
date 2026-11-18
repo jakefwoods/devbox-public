@@ -117,6 +117,11 @@
 (after! (:and envrc lsp-mode)
         (advice-add 'lsp--start-workspace :around #'envrc-propagate-environment))
 
+(after! lsp-lua
+  (setq lsp-clients-lua-language-server-command '("lua-language-server"))
+  (advice-add #'lsp-clients-lua-language-server-test :override
+              (lambda () (executable-find "lua-language-server"))))
+
 ;; ── doom-local: machine-specific config overlay ──────────────────────
 ;; Load all .el files from ~/.config/doom-local/ (provided by the private
 ;; repo via mutableInputs). This is where machine- or org-specific config
